@@ -22,14 +22,14 @@ func run() error {
 	var mc machineClienter = machineClient
 
 	strict := strictStrategy{mc: *machineClient}
-	errorProne := errorProneStrategy{mc: *machineClient}
+	errorResilient := errorResilientStrategy{mc: *machineClient}
 	// normal downscale delete: care about the result --> no error.
 	mc.setStopPrebootedLinuxStrategy(strict)
 	if err := mc.stopPrebootedLinuxGCP(uuid.New()); err != nil {
 		return fmt.Errorf("delete instance: %w", err)
 	}
 	// stuck agent intro secret delete case --> care about specific error.
-	mc.setStopPrebootedLinuxStrategy(errorProne)
+	mc.setStopPrebootedLinuxStrategy(errorResilient)
 	if err := mc.stopPrebootedLinuxGCP(uuid.Nil); err != nil {
 		if !errors.Is(err, ErrGCPInstanceDelete) {
 			return fmt.Errorf("delete instance: %w", err)
@@ -72,7 +72,7 @@ type strategier interface {
 	stop(id uuid.UUID) error
 }
 
-type errorProneStrategy struct {
+type errorResilientStrategy struct {
 	mc machineClient
 }
 
@@ -80,7 +80,7 @@ type strictStrategy struct {
 	mc machineClient
 }
 
-func (s errorProneStrategy) stop(id uuid.UUID) error {
+func (s errorResilientStrategy) stop(id uuid.UUID) error {
 	err := s.mc.withKillAgent(id, func(uuid.UUID) error {
 		err := s.mc.client.DeleteInstance(id)
 		if err != nil && errors.Is(err, ErrGCPInstanceDelete) {
